@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Simple private daily weight tracker. Log weight, view trends, export data. All data stays in your browser.">
+    <title>WeightLog • Daily Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        :root {
+            --primary: #10b981;
+        }
+        
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+        }
+        
+        .font-display {
+            font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif;
+            font-weight: 600;
+        }
+
+        .weight-card {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+        }
+        .weight-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+
+        .stat-value {
+            font-variant-numeric: tabular-nums;
+        }
+
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .entry-row {
+            transition: background-color 0.1s;
+        }
+        .entry-row:hover {
+            background-color: #f8fafc;
+        }
+
+        .metric {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .section-header {
+            font-size: 1.05rem;
+            letter-spacing: -.015em;
+        }
+
+        .empty-state {
+            background: linear-gradient(145deg, #f8fafc, #ffffff);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div class="max-w-5xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center gap-x-3">
+                <div class="w-11 h-11 bg-emerald-600 rounded-2xl flex items-center justify-center shadow-inner">
+                    <i class="fa-solid fa-weight-hanging text-white text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-display text-3xl tracking-tighter font-semibold text-slate-900">WeightLog</h1>
+                    <p class="text-sm text-slate-500 -mt-1">Daily weight tracker</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-x-2">
+                <button onclick="exportToCSV()" 
+                        class="inline-flex items-center gap-x-2 px-4 py-2 text-sm font-medium bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl transition-colors shadow-sm">
+                    <i class="fa-solid fa-download text-emerald-600"></i>
+                    <span class="hidden sm:inline">Export CSV</span>
+                </button>
+                
+                <button onclick="clearAllData()" 
+                        class="inline-flex items-center gap-x-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 border border-red-100 hover:border-red-200 rounded-2xl transition-colors">
+                    <i class="fa-solid fa-trash"></i>
+                    <span class="hidden sm:inline">Clear Data</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Log Weight Card -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8 weight-card">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="section-header font-semibold text-slate-900">Log today's weight</h2>
+                    <p class="text-sm text-slate-500 mt-1">Record your daily measurement</p>
+                </div>
+                <div class="hidden md:flex items-center text-xs px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-2xl font-medium">
+                    <i class="fa-solid fa-shield-halved mr-1.5"></i>
+                    <span>Private &amp; local</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <!-- Date -->
+                <div class="md:col-span-5">
+                    <label class="block text-xs font-semibold tracking-wider text-slate-500 mb-1.5">DATE</label>
+                    <input type="date" id="dateInput" 
+                           class="w-full px-4 py-3 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-2xl text-base outline-none transition-all">
+                </div>
+
+                <!-- Weight -->
+                <div class="md:col-span-4">
+                    <label class="block text-xs font-semibold tracking-wider text-slate-500 mb-1.5">WEIGHT (KG)</label>
+                    <div class="relative">
+                        <input type="number" id="weightInput" step="0.1" min="30" max="250" placeholder="72.5"
+                               class="w-full px-4 py-3 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-2xl text-base outline-none transition-all pr-12">
+                        <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">kg</div>
+                    </div>
+                </div>
+
+                <!-- Action -->
+                <div class="md:col-span-3 flex items-end">
+                    <button onclick="logWeight()" id="logButton"
+                            class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-all text-white font-semibold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-x-2 shadow-sm hover:shadow">
+                        <i class="fa-solid fa-plus"></i>
+                        <span id="logButtonText">Log Weight</span>
+                    </button>
+                </div>
+            </div>
+            
+            <p class="text-[10px] text-slate-400 mt-4 flex items-center gap-x-1">
+                <i class="fa-solid fa-info-circle"></i> 
+                <span>Entries for the same date are automatically updated</span>
+            </p>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8" id="statsContainer">
+            <!-- Populated by JS -->
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-7 mb-8">
+            <div class="flex items-center justify-between mb-5">
+                <div>
+                    <h3 class="section-header font-semibold">Weight Trend</h3>
+                    <p class="text-xs text-slate-500">Your progress over time</p>
+                </div>
+                <div class="text-xs px-3 py-1 bg-slate-100 text-slate-500 rounded-2xl font-medium" id="dataPoints">0 entries</div>
+            </div>
+            <div class="relative h-[280px] w-full">
+                <canvas id="weightChart"></canvas>
+            </div>
+        </div>
+
+        <!-- History Table -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="px-7 pt-6 pb-4 flex items-center justify-between border-b border-slate-100">
+                <div>
+                    <h3 class="section-header font-semibold">History</h3>
+                    <p class="text-xs text-slate-500">All recorded entries • Newest first</p>
+                </div>
+                <div class="text-xs text-slate-400 font-medium" id="entryCount">0 entries</div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="bg-slate-50 text-left">
+                            <th class="px-7 py-4 text-xs font-semibold text-slate-500 w-40">DATE</th>
+                            <th class="px-4 py-4 text-xs font-semibold text-slate-500">WEIGHT</th>
+                            <th class="px-4 py-4 text-xs font-semibold text-slate-500 w-28">CHANGE</th>
+                            <th class="px-7 py-4 text-xs font-semibold text-slate-500 text-right w-36">ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody" class="text-sm divide-y divide-slate-100">
+                        <!-- Populated dynamically by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="emptyState" class="hidden px-7 py-16 text-center">
+                <div class="mx-auto w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-weight-hanging text-slate-300 text-2xl"></i>
+                </div>
+                <p class="font-medium text-slate-600">No entries yet</p>
+                <p class="text-sm text-slate-400 mt-1">Start logging your weight above to see your history and trends.</p>
+            </div>
+        </div>
+
+        <div class="mt-8 text-center">
+            <p class="text-xs text-slate-400">
+                Your data is stored privately in this browser only. 
+                <span class="font-medium">Export regularly</span> for backup.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Tailwind configuration
+        function initTailwind() {
+            document.documentElement.style.setProperty('--accent-color', '#10b981');
+        }
+
+        // App state
+        let entries = [];
+        let chartInstance = null;
+
+        // Load data from localStorage
+        function loadEntries() {
+            const saved = localStorage.getItem('weightEntries');
+            if (saved) {
+                entries = JSON.parse(saved);
+            } else {
+                // Seed a few sample entries for first-time users (realistic progression)
+                const today = new Date();
+                entries = [];
+                for (let i = 14; i >= 0; i--) {
+                    const d = new Date(today);
+                    d.setDate(d.getDate() - i);
+                    const dateStr = d.toISOString().split('T')[0];
+                    // Gentle downward trend with small variation
+                    const baseWeight = 76.8 - (i * 0.12);
+                    const variation = (Math.sin(i) * 0.4);
+                    entries.push({
+                        id: Date.now() + i,
+                        date: dateStr,
+                        weight: parseFloat((baseWeight + variation).toFixed(1))
+                    });
+                }
+                saveEntries();
+            }
+            // Sort by date ascending for consistency
+            entries.sort((a, b) => a.date.localeCompare(b.date));
+        }
+
+        function saveEntries() {
+            localStorage.setItem('weightEntries', JSON.stringify(entries));
+        }
+
+        // Format date nicely
+        function formatDate(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            return date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric',
+                year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined 
+            });
+        }
+
+        // Calculate statistics
+        function calculateStats() {
+            if (entries.length === 0) {
+                return { latest: null, change7d: null, avg: null };
+            }
+
+            const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date));
+            const latest = sorted[0].weight;
+
+            // 7-day change
+            let change7d = null;
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+            
+            const entry7d = entries.find(e => e.date === sevenDaysAgoStr);
+            if (entry7d) {
+                change7d = parseFloat((latest - entry7d.weight).toFixed(1));
+            }
+
+            // Average (last 30 days or all)
+            const avg = parseFloat((entries.reduce((sum, e) => sum + e.weight, 0) / entries.length).toFixed(1));
+
+            return { latest, change7d, avg };
+        }
+
+        // Render statistics cards
+        function renderStats() {
+            const container = document.getElementById('statsContainer');
+            const stats = calculateStats();
+
+            if (entries.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let changeHTML = '';
+            if (stats.change7d !== null) {
+                const isPositive = stats.change7d > 0;
+                changeHTML = `
+                    <div class="bg-white border border-slate-100 rounded-3xl p-5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-xs font-semibold tracking-wider text-slate-500">7-DAY CHANGE</div>
+                                <div class="mt-2 flex items-baseline gap-x-1">
+                                    <span class="text-3xl font-semibold metric ${isPositive ? 'text-red-600' : 'text-emerald-600'}">${stats.change7d > 0 ? '+' : ''}${stats.change7d}</span>
+                                    <span class="text-sm text-slate-400">kg</span>
+                                </div>
+                            </div>
+                            <i class="fa-solid ${isPositive ? 'fa-arrow-trend-up text-red-400' : 'fa-arrow-trend-down text-emerald-400'} text-2xl"></i>
+                        </div>
+                    </div>
+                `;
+            } else {
+                changeHTML = `
+                    <div class="bg-white border border-slate-100 rounded-3xl p-5">
+                        <div class="text-xs font-semibold tracking-wider text-slate-500">7-DAY CHANGE</div>
+                        <div class="mt-3 text-slate-400 text-sm">Not enough data</div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <div class="bg-white border border-slate-100 rounded-3xl p-5">
+                    <div class="text-xs font-semibold tracking-wider text-slate-500">LATEST WEIGHT</div>
+                    <div class="mt-2 flex items-baseline gap-x-1">
+                        <span class="text-3xl font-semibold metric">${stats.latest}</span>
+                        <span class="text-sm text-slate-400">kg</span>
+                    </div>
+                    <div class="text-[10px] text-emerald-600 mt-1">Most recent entry</div>
+                </div>
+
+                ${changeHTML}
+
+                <div class="bg-white border border-slate-100 rounded-3xl p-5">
+                    <div class="text-xs font-semibold tracking-wider text-slate-500">AVERAGE</div>
+                    <div class="mt-2 flex items-baseline gap-x-1">
+                        <span class="text-3xl font-semibold metric">${stats.avg}</span>
+                        <span class="text-sm text-slate-400">kg</span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 mt-1">Across all ${entries.length} entries</div>
+                </div>
+            `;
+        }
+
+        // Render chart
+        function renderChart() {
+            const canvas = document.getElementById('weightChart');
+            const ctx = canvas.getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+
+            if (entries.length === 0) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+
+            // Sort ascending for chart
+            const sortedEntries = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+
+            const labels = sortedEntries.map(e => {
+                const d = new Date(e.date);
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            });
+            const data = sortedEntries.map(e => e.weight);
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Weight (kg)',
+                        data: data,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        borderWidth: 3,
+                        tension: 0.35,
+                        fill: true,
+                        pointBackgroundColor: '#10b981',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            titleFont: { size: 12 },
+                            bodyFont: { size: 13, weight: '600' },
+                            displayColors: false,
+                            callbacks: {
+                                label: (ctx) => ctx.raw + ' kg'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#f1e7ff', lineWidth: 0.5 },
+                            ticks: { color: '#64748b', font: { size: 11 } }
+                        },
+                        y: {
+                            grid: { color: '#f1e7ff', lineWidth: 0.5 },
+                            ticks: { 
+                                color: '#64748b', 
+                                font: { size: 11 },
+                                callback: (val) => val + ' kg'
+                            }
+                        }
+                    },
+                    elements: {
+                        line: { borderJoinStyle: 'round' },
+                        point: { hitRadius: 20 }
+                    }
+                }
+            });
+
+            // Update data points count
+            document.getElementById('dataPoints').textContent = `${entries.length} entries`;
+        }
+
+        // Render history table (newest first)
+        function renderTable() {
+            const tbody = document.getElementById('historyTableBody');
+            const emptyState = document.getElementById('emptyState');
+            const entryCountEl = document.getElementById('entryCount');
+
+            tbody.innerHTML = '';
+            entryCountEl.textContent = `${entries.length} entries`;
+
+            if (entries.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            // Sort newest first for display
+            const displayEntries = [...entries].sort((a, b) => b.date.localeCompare(a.date));
+
+            // Create a map for quick previous weight lookup (chronological)
+            const sortedAsc = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+
+            displayEntries.forEach((entry, index) => {
+                // Find previous entry (the one before this date)
+                const currentIndexInSorted = sortedAsc.findIndex(e => e.date === entry.date);
+                let deltaHTML = '<span class="text-slate-300">—</span>';
+                
+                if (currentIndexInSorted > 0) {
+                    const prevWeight = sortedAsc[currentIndexInSorted - 1].weight;
+                    const delta = parseFloat((entry.weight - prevWeight).toFixed(1));
+                    const isUp = delta > 0;
+                    deltaHTML = `
+                        <span class="inline-flex items-center gap-x-1 font-medium ${isUp ? 'text-red-600' : 'text-emerald-600'}">
+                            ${isUp ? '+' : ''}${delta} kg
+                            <i class="fa-solid fa-arrow-${isUp ? 'up' : 'down'} text-xs"></i>
+                        </span>
+                    `;
+                }
+
+                const row = document.createElement('tr');
+                row.className = 'entry-row border-b border-slate-100 last:border-none';
+                row.innerHTML = `
+                    <td class="px-7 py-4 font-medium text-slate-700">${formatDate(entry.date)}</td>
+                    <td class="px-4 py-4">
+                        <span class="font-semibold text-lg tabular-nums">${entry.weight}</span>
+                        <span class="text-xs text-slate-400 ml-0.5">kg</span>
+                    </td>
+                    <td class="px-4 py-4">${deltaHTML}</td>
+                    <td class="px-7 py-4 text-right">
+                        <div class="flex items-center justify-end gap-x-1">
+                            <button onclick="editEntry('${entry.date}')" 
+                                    class="px-3.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors flex items-center gap-x-1.5">
+                                <i class="fa-solid fa-edit"></i>
+                                <span>Edit</span>
+                            </button>
+                            <button onclick="deleteEntry('${entry.date}')" 
+                                    class="px-3.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-x-1.5">
+                                <i class="fa-solid fa-trash"></i>
+                                <span>Delete</span>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Main render function
+        function renderAll() {
+            renderStats();
+            renderChart();
+            renderTable();
+        }
+
+        // Add or update entry (upsert by date)
+        function logWeight() {
+            const dateInput = document.getElementById('dateInput');
+            const weightInput = document.getElementById('weightInput');
+
+            const date = dateInput.value;
+            const weight = parseFloat(weightInput.value);
+
+            if (!date || isNaN(weight) || weight <= 0) {
+                alert('Please enter a valid date and weight.');
+                return;
+            }
+
+            // Check if entry for this date already exists
+            const existingIndex = entries.findIndex(e => e.date === date);
+
+            if (existingIndex !== -1) {
+                // Update existing
+                entries[existingIndex].weight = weight;
+            } else {
+                // Add new
+                entries.push({
+                    id: Date.now(),
+                    date: date,
+                    weight: weight
+                });
+            }
+
+            // Re-sort
+            entries.sort((a, b) => a.date.localeCompare(b.date));
+
+            saveEntries();
+            renderAll();
+
+            // Clear weight input for next entry (keep date)
+            weightInput.value = '';
+            weightInput.focus();
+
+            // Optional subtle feedback
+            const btn = document.getElementById('logButton');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-check"></i> <span>Saved</span>`;
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+            }, 1200);
+        }
+
+        // Edit entry - populate form
+        function editEntry(date) {
+            const entry = entries.find(e => e.date === date);
+            if (!entry) return;
+
+            document.getElementById('dateInput').value = entry.date;
+            document.getElementById('weightInput').value = entry.weight;
+            document.getElementById('weightInput').focus();
+            
+            // Scroll to top form
+            document.querySelector('.bg-white.rounded-3xl').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Delete entry
+        function deleteEntry(date) {
+            if (!confirm('Delete this entry?')) return;
+
+            entries = entries.filter(e => e.date !== date);
+            saveEntries();
+            renderAll();
+        }
+
+        // Export to CSV
+        function exportToCSV() {
+            if (entries.length === 0) {
+                alert('No data to export.');
+                return;
+            }
+
+            const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+            let csv = 'Date,Weight (kg)\n';
+            
+            sorted.forEach(entry => {
+                csv += `${entry.date},${entry.weight}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `weight-log-${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Clear all data
+        function clearAllData() {
+            if (!confirm('This will permanently delete all your weight entries. Continue?')) {
+                return;
+            }
+            entries = [];
+            localStorage.removeItem('weightEntries');
+            renderAll();
+        }
+
+        // Set default date to today
+        function setDefaultDate() {
+            const dateInput = document.getElementById('dateInput');
+            const today = new Date();
+            const formatted = today.toISOString().split('T')[0];
+            dateInput.value = formatted;
+        }
+
+        // Keyboard support
+        function setupKeyboardSupport() {
+            const weightInput = document.getElementById('weightInput');
+            weightInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    logWeight();
+                }
+            });
+
+            // Allow Enter on date too
+            const dateInput = document.getElementById('dateInput');
+            dateInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    weightInput.focus();
+                }
+            });
+        }
+
+        // Initialize everything
+        function initializeApp() {
+            initTailwind();
+            loadEntries();
+            setDefaultDate();
+            setupKeyboardSupport();
+            renderAll();
+
+            // Make sure weight input is ready
+            const weightInput = document.getElementById('weightInput');
+            if (weightInput) weightInput.focus();
+
+            // Bonus: Allow clicking on stat cards or chart area to focus input (nice touch)
+            console.log('%c[WeightLog] App initialized successfully. Data is private to this browser.', 'color:#64748b');
+        }
+
+        // Boot the application
+        window.onload = initializeApp;
+    </script>
+</body>
+</html>
