@@ -28,9 +28,68 @@
         @keyframes modalPop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
         .sync-badge { font-size: 0.65rem; letter-spacing: 0.5px; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+        .shake { animation: shake 0.4s ease-in-out; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
+    <!-- ==================== PIN LOCK SCREEN ==================== -->
+    <div id="pinScreen" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-[100]">
+        <div class="w-full max-w-sm mx-4">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-emerald-600 rounded-3xl mb-4">
+                    <i class="fa-solid fa-weight-hanging text-white text-3xl"></i>
+                </div>
+                <h1 class="text-3xl font-semibold text-white tracking-tight">WeightLog</h1>
+                <p class="text-slate-400 mt-1">Your personal weight tracker</p>
+            </div>
+
+            <div class="bg-white rounded-3xl shadow-xl p-8">
+                <div id="pinSetup" class="hidden">
+                    <div class="text-center mb-6">
+                        <i class="fa-solid fa-shield-halved text-emerald-600 text-2xl mb-3"></i>
+                        <h2 class="font-semibold text-xl">Set a PIN</h2>
+                        <p class="text-sm text-slate-500 mt-1">Protect your weight data on this device</p>
+                    </div>
+                    <input type="password" id="newPinInput" maxlength="6" inputmode="numeric" pattern="[0-9]*"
+                           class="w-full text-center text-3xl tracking-[12px] py-4 border border-slate-200 rounded-2xl focus:border-emerald-500 outline-none"
+                           placeholder="••••••">
+                    <p class="text-[10px] text-slate-400 mt-2 text-center">Use 4 to 6 digits. Remember this PIN.</p>
+                    <button onclick="setupPin()" 
+                            class="mt-5 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 rounded-2xl transition-colors">
+                        Set PIN &amp; Continue
+                    </button>
+                </div>
+
+                <div id="pinUnlock">
+                    <div class="text-center mb-6">
+                        <i class="fa-solid fa-lock text-slate-700 text-2xl mb-3"></i>
+                        <h2 class="font-semibold text-xl">Enter PIN</h2>
+                        <p class="text-sm text-slate-500 mt-1">Unlock your weight tracker</p>
+                    </div>
+                    <input type="password" id="pinInput" maxlength="6" inputmode="numeric" pattern="[0-9]*"
+                           class="w-full text-center text-3xl tracking-[12px] py-4 border border-slate-200 rounded-2xl focus:border-emerald-500 outline-none"
+                           placeholder="••••••" onkeypress="if (event.key === 'Enter') unlockWithPin()">
+                    <button onclick="unlockWithPin()" 
+                            class="mt-5 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 rounded-2xl transition-colors">
+                        Unlock
+                    </button>
+                    <div class="text-center mt-4">
+                        <button onclick="forgotPin()" class="text-xs text-red-600 hover:text-red-700">Forgot PIN?</button>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-center text-slate-500 text-xs mt-6">Data is stored in your GitHub repository</p>
+        </div>
+    </div>
+
+    <!-- Main App -->
     <div class="max-w-5xl mx-auto px-4 py-8">
         <!-- Header -->
         <div class="flex items-center justify-between mb-8">
@@ -50,6 +109,12 @@
                     <i class="fa-solid fa-sync text-emerald-500"></i>
                     <span id="syncText" class="text-emerald-700">Synced with GitHub</span>
                 </div>
+
+                <button onclick="lockApp()" 
+                        class="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-white border border-transparent hover:border-slate-200 rounded-2xl transition-all"
+                        title="Lock app">
+                    <i class="fa-solid fa-lock text-lg"></i>
+                </button>
 
                 <button onclick="openSettingsModal()" 
                         class="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-white border border-transparent hover:border-slate-200 rounded-2xl transition-all">
@@ -75,7 +140,10 @@
 
             <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div class="md:col-span-5">
-                    <label class="block text-xs font-semibold tracking-wider text-slate-500 mb-1.5">DATE</label>
+                    <label class="block text-xs font-semibold tracking-wider text-slate-500 mb-1.5 flex items-center gap-x-1">
+                        DATE
+                        <span id="dateLockHint" class="hidden text-amber-600"><i class="fa-solid fa-lock text-[10px]"></i></span>
+                    </label>
                     <input type="date" id="dateInput" class="w-full px-4 py-3 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-2xl text-base outline-none transition-all">
                 </div>
 
@@ -97,14 +165,25 @@
                 </div>
             </div>
             
+            <!-- Verified date warning (shown dynamically) -->
+            <div id="verifiedWarning" class="hidden mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-sm">
+                <div class="flex items-start gap-x-2 text-amber-700">
+                    <i class="fa-solid fa-lock mt-0.5"></i>
+                    <div>
+                        <span class="font-semibold">This date is verified.</span> 
+                        Editing is locked. Delete the entry first if you need to make a correction.
+                    </div>
+                </div>
+            </div>
+
             <p class="text-[10px] text-slate-400 mt-4 flex items-center gap-x-1">
                 <i class="fa-solid fa-info-circle"></i> 
-                <span>Entries for the same date are automatically updated</span>
+                <span>Verified entries are locked and cannot be edited</span>
             </p>
         </div>
 
         <!-- Stats -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8" id="statsContainer"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="statsContainer"></div>
 
         <!-- Chart -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-7 mb-8">
@@ -153,8 +232,11 @@
             </div>
         </div>
 
-        <div class="mt-8 text-center text-xs text-slate-400">
-            Data is stored privately. Enable GitHub sync in settings for repo-backed persistence.
+        <div class="mt-8 text-center text-xs text-slate-400 flex items-center justify-center gap-x-2">
+            <span>Source of truth:</span> 
+            <span class="font-medium text-slate-500">GitHub repository (weight-data.json)</span>
+            <span class="hidden sm:inline">•</span>
+            <span>Verified entries are permanently locked</span>
         </div>
     </div>
 
@@ -173,17 +255,20 @@
                         <i class="fa-brands fa-github text-xl"></i>
                         <h4 class="font-semibold">GitHub Repository Sync</h4>
                     </div>
-                    <p class="text-sm text-slate-600 mb-4">Store your weight data as <code class="bg-slate-100 px-1.5 py-0.5 rounded">weight-data.json</code> inside this repository. Enables version history and access from any device.</p>
+                    <p class="text-sm text-slate-600 mb-4">Your <strong>single source of truth</strong> is <code class="bg-slate-100 px-1.5 py-0.5 rounded">weight-data.json</code> in this repository. Every add/edit/verify writes directly to the repo. Verified entries become permanently locked.</p>
 
                     <div id="syncConnected" class="hidden">
-                        <div class="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 mb-4">
-                            <div class="flex items-center gap-x-2">
-                                <i class="fa-solid fa-check-circle text-emerald-600"></i>
-                                <span class="font-medium text-emerald-700 text-sm">Connected to repository</span>
+                        <div class="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 mb-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-x-2">
+                                    <i class="fa-solid fa-check-circle text-emerald-600"></i>
+                                    <span class="font-medium text-emerald-700 text-sm">Connected to repository</span>
+                                </div>
+                                <button onclick="disconnectGitHub()" class="text-xs px-3 py-1 text-red-600 hover:bg-red-50 rounded-xl">Disconnect</button>
                             </div>
-                            <button onclick="disconnectGitHub()" class="text-xs px-3 py-1 text-red-600 hover:bg-red-50 rounded-xl">Disconnect</button>
+                            <div id="connectedUserInfo" class="mb-2"></div>
+                            <div class="text-xs text-slate-500">Last synced: <span id="lastSyncTime" class="font-medium"></span></div>
                         </div>
-                        <div class="text-xs text-slate-500 mb-3">Last synced: <span id="lastSyncTime" class="font-medium"></span></div>
                         <button onclick="manualSync()" class="w-full py-2.5 text-sm font-medium border border-emerald-200 hover:bg-emerald-50 text-emerald-700 rounded-2xl transition-colors">
                             <i class="fa-solid fa-sync mr-2"></i> Sync Now
                         </button>
@@ -195,13 +280,13 @@
                                 <label class="text-xs font-semibold tracking-wider text-slate-500 block mb-1.5">FINE-GRAINED PERSONAL ACCESS TOKEN</label>
                                 <input type="password" id="githubToken" placeholder="ghp_... or fine-grained token" 
                                        class="w-full px-4 py-2.5 border border-slate-200 focus:border-emerald-500 rounded-2xl text-sm font-mono">
-                                <p class="text-[10px] text-slate-400 mt-1.5 leading-snug">Create at <a href="https://github.com/settings/tokens" target="_blank" class="underline">github.com/settings/tokens</a>. Select only this repo + Contents: Read &amp; write.</p>
+                                <p class="text-[10px] text-slate-400 mt-1.5 leading-snug">Create a token at <a href="https://github.com/settings/tokens" target="_blank" class="underline">github.com/settings/tokens</a> with access only to this repo + Contents: Read &amp; write.</p>
                             </div>
 
                             <button onclick="connectGitHub()" 
                                     class="w-full bg-slate-900 hover:bg-black transition-colors text-white text-sm font-semibold py-3 rounded-2xl flex items-center justify-center gap-x-2">
                                 <i class="fa-brands fa-github"></i>
-                                <span>Connect &amp; Enable Sync</span>
+                                <span>Connect with GitHub</span>
                             </button>
                         </div>
                     </div>
@@ -225,10 +310,242 @@
         let chartInstance = null;
         let githubToken = localStorage.getItem('gh_token') || '';
         let isSyncEnabled = !!githubToken;
+        let isSyncing = false; // prevents concurrent operations
+
+        // Edit mode tracking (when user clicked Edit button on a specific entry)
+        let editingDate = null; // null = free logging mode, string = locked to this date
+
+        // ==================== AUTH STATE ====================
+        let isAppUnlocked = false;
+        let currentGitHubUser = null; // { login, name, avatar_url } after successful connection
 
         // ==================== TAILWIND ====================
         function initTailwind() {
             // Already using CDN classes
+        }
+
+        // ==================== DATA HELPERS ====================
+        function normalizeEntry(entry) {
+            // Support legacy entries without verified field
+            return {
+                date: entry.date,
+                weight: parseFloat(entry.weight),
+                verified: entry.verified === true,
+                verifiedAt: entry.verifiedAt || null
+            };
+        }
+
+        function normalizeEntries(rawEntries) {
+            if (!Array.isArray(rawEntries)) return [];
+            return rawEntries.map(normalizeEntry);
+        }
+
+        function getEntryByDate(date) {
+            return entries.find(e => e.date === date);
+        }
+
+        function isDateVerified(date) {
+            const entry = getEntryByDate(date);
+            return entry ? entry.verified : false;
+        }
+
+        // ==================== AUTH / PIN SYSTEM ====================
+        const PIN_HASH_KEY = 'wl_pin_hash';
+        const PIN_SALT_KEY = 'wl_pin_salt';
+
+        async function hashPin(pin, salt) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(salt + pin);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(hashBuffer))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        async function setupPin() {
+            const input = document.getElementById('newPinInput');
+            const pin = input.value.trim();
+
+            if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+                alert('Please enter a 4 to 6 digit PIN.');
+                return;
+            }
+
+            const salt = crypto.randomUUID();
+            const hash = await hashPin(pin, salt);
+
+            localStorage.setItem(PIN_SALT_KEY, salt);
+            localStorage.setItem(PIN_HASH_KEY, hash);
+
+            isAppUnlocked = true;
+            hidePinScreen();
+            await initializeAppAfterUnlock();
+        }
+
+        async function unlockWithPin() {
+            const input = document.getElementById('pinInput');
+            const pin = input.value.trim();
+
+            if (!pin) return;
+
+            const storedHash = localStorage.getItem(PIN_HASH_KEY);
+            const salt = localStorage.getItem(PIN_SALT_KEY);
+
+            if (!storedHash || !salt) {
+                // No PIN set (shouldn't normally happen)
+                isAppUnlocked = true;
+                hidePinScreen();
+                await initializeAppAfterUnlock();
+                return;
+            }
+
+            const hash = await hashPin(pin, salt);
+
+            if (hash === storedHash) {
+                isAppUnlocked = true;
+                input.value = '';
+                hidePinScreen();
+                await initializeAppAfterUnlock();
+            } else {
+                input.classList.add('!border-red-500', 'shake');
+                setTimeout(() => input.classList.remove('!border-red-500', 'shake'), 600);
+                input.value = '';
+            }
+        }
+
+        function forgotPin() {
+            if (!confirm('Forgot your PIN? You will need to reset it. This will clear your locally cached GitHub token (you can reconnect after). Your data in GitHub will NOT be deleted.\n\nContinue?')) {
+                return;
+            }
+
+            // Clear PIN and sensitive local data
+            localStorage.removeItem(PIN_HASH_KEY);
+            localStorage.removeItem(PIN_SALT_KEY);
+            localStorage.removeItem('gh_token');
+
+            githubToken = '';
+            currentGitHubUser = null;
+            isSyncEnabled = false;
+
+            // Show setup screen again
+            document.getElementById('pinUnlock').classList.add('hidden');
+            document.getElementById('pinSetup').classList.remove('hidden');
+            document.getElementById('newPinInput').focus();
+        }
+
+        function hidePinScreen() {
+            const pinScreen = document.getElementById('pinScreen');
+            if (pinScreen) pinScreen.style.display = 'none';
+        }
+
+        function showPinScreen() {
+            const pinScreen = document.getElementById('pinScreen');
+            if (pinScreen) {
+                pinScreen.style.display = 'flex';
+                const hasPin = !!localStorage.getItem(PIN_HASH_KEY);
+                document.getElementById('pinSetup').classList.toggle('hidden', hasPin);
+                document.getElementById('pinUnlock').classList.toggle('hidden', !hasPin);
+
+                if (!hasPin) {
+                    document.getElementById('newPinInput').focus();
+                } else {
+                    document.getElementById('pinInput').focus();
+                }
+            }
+        }
+
+        function lockApp() {
+            isAppUnlocked = false;
+            currentGitHubUser = null;
+
+            // Clear sensitive data from memory for better security while locked
+            entries = [];
+            chartInstance = null;
+
+            const pinScreen = document.getElementById('pinScreen');
+            if (pinScreen) pinScreen.style.display = 'flex';
+            document.getElementById('pinUnlock').classList.remove('hidden');
+            document.getElementById('pinSetup').classList.add('hidden');
+            document.getElementById('pinInput').value = '';
+            document.getElementById('pinInput').focus();
+
+            // Clear any visible data in the UI
+            const tbody = document.getElementById('historyTableBody');
+            if (tbody) tbody.innerHTML = '';
+            const stats = document.getElementById('statsContainer');
+            if (stats) stats.innerHTML = '';
+            const chartCanvas = document.getElementById('weightChart');
+            if (chartCanvas) {
+                const ctx = chartCanvas.getContext('2d');
+                ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+            }
+        }
+
+        // ==================== GITHUB USER VALIDATION ====================
+        async function validateAndGetGitHubUser(token) {
+            try {
+                const res = await fetch('https://api.github.com/user', {
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (!res.ok) {
+                    if (res.status === 401) return { valid: false, error: 'Invalid or expired token' };
+                    return { valid: false, error: `GitHub error: ${res.status}` };
+                }
+
+                const user = await res.json();
+                return {
+                    valid: true,
+                    user: {
+                        login: user.login,
+                        name: user.name || user.login,
+                        avatar_url: user.avatar_url
+                    }
+                };
+            } catch (err) {
+                return { valid: false, error: 'Failed to connect to GitHub' };
+            }
+        }
+
+        function updateGitHubConnectionUI() {
+            // This will be called from settings modal and header
+            const syncStatusEl = document.getElementById('syncStatus');
+            if (!syncStatusEl) return;
+
+            if (githubToken && currentGitHubUser) {
+                syncStatusEl.classList.remove('hidden');
+                syncStatusEl.classList.add('flex');
+                document.getElementById('syncText').innerHTML = `
+                    <span class="flex items-center gap-x-1.5">
+                        <img src="${currentGitHubUser.avatar_url}" class="w-4 h-4 rounded-full" alt="">
+                        <span>${currentGitHubUser.login}</span>
+                    </span>
+                `;
+            } else if (githubToken) {
+                syncStatusEl.classList.remove('hidden');
+                syncStatusEl.classList.add('flex');
+                document.getElementById('syncText').textContent = 'GitHub Connected';
+            } else {
+                syncStatusEl.classList.add('hidden');
+                syncStatusEl.classList.remove('flex');
+            }
+        }
+
+        function exitEditMode() {
+            editingDate = null;
+            const dateInput = document.getElementById('dateInput');
+            const hint = document.getElementById('dateLockHint');
+            if (dateInput) {
+                dateInput.disabled = false;
+                dateInput.classList.remove('!bg-slate-100', '!cursor-not-allowed');
+            }
+            if (hint) hint.classList.add('hidden');
+            // Clear any editing context banner
+            const ctx = document.getElementById('editingContext');
+            if (ctx) ctx.remove();
         }
 
         // ==================== GITHUB API ====================
@@ -247,10 +564,20 @@
                     return { exists: false, sha: null, content: null };
                 }
 
-                if (!res.ok) throw new Error('Failed to fetch from GitHub');
+                if (!res.ok) {
+                    if (res.status === 401 || res.status === 403) {
+                        throw new Error('GitHub token invalid or insufficient permissions');
+                    }
+                    throw new Error(`GitHub API error: ${res.status}`);
+                }
 
                 const data = await res.json();
-                const content = JSON.parse(atob(data.content));
+                let content = {};
+                try {
+                    content = JSON.parse(atob(data.content));
+                } catch {
+                    content = { entries: [] };
+                }
                 return { exists: true, sha: data.sha, content };
             } catch (err) {
                 console.error('GitHub fetch error:', err);
@@ -260,9 +587,13 @@
 
         async function commitToGitHub(newContent, commitMessage) {
             if (!githubToken) return false;
+            if (isSyncing) return false;
+
+            isSyncing = true;
+            updateSyncStatusUI('syncing');
 
             try {
-                // Get current file info (for SHA)
+                // Get current file info (for SHA) - this ensures we always have latest
                 const current = await fetchFromGitHub();
                 const sha = current && current.exists ? current.sha : null;
 
@@ -285,45 +616,61 @@
                 });
 
                 if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.message || 'Failed to commit to GitHub');
+                    const errorData = await res.json().catch(() => ({}));
+                    const msg = errorData.message || `GitHub error ${res.status}`;
+                    throw new Error(msg);
                 }
 
                 return true;
             } catch (err) {
                 console.error('GitHub commit error:', err);
-                alert('Failed to sync with GitHub: ' + err.message);
+                // Don't spam alerts for every operation - let caller decide
                 return false;
+            } finally {
+                isSyncing = false;
+                updateSyncStatusUI(githubToken ? 'synced' : 'local');
             }
         }
 
         async function loadData() {
-            // Try GitHub first if token exists
+            // Try GitHub first if token exists (source of truth)
             if (githubToken) {
                 const ghData = await fetchFromGitHub();
                 if (ghData && ghData.exists && ghData.content && ghData.content.entries) {
-                    entries = ghData.content.entries;
+                    entries = normalizeEntries(ghData.content.entries);
                     updateLastSyncTime();
+                    updateSyncStatus(true);
+                    return;
+                } else if (ghData && ghData.exists === false) {
+                    // File doesn't exist yet in repo - start fresh
+                    entries = [];
                     updateSyncStatus(true);
                     return;
                 }
             }
 
-            // Fallback to localStorage
+            // Fallback to localStorage (when no GitHub sync)
             const saved = localStorage.getItem('weightEntries');
             if (saved) {
-                entries = JSON.parse(saved);
+                try {
+                    entries = normalizeEntries(JSON.parse(saved));
+                } catch {
+                    entries = [];
+                }
             } else {
-                entries = []; // Clean production start - no demo data
+                entries = []; // Clean production start
             }
             updateSyncStatus(false);
         }
 
         async function saveData(source = 'user') {
+            // Normalize before saving
+            entries = normalizeEntries(entries);
+
             // Always keep local copy
             localStorage.setItem('weightEntries', JSON.stringify(entries));
 
-            // If GitHub sync is enabled, commit to repo
+            // If GitHub sync is enabled, commit to repo (this is the DB)
             if (githubToken) {
                 const success = await commitToGitHub(
                     { 
@@ -340,16 +687,30 @@
         }
 
         function updateSyncStatus(synced) {
-            const badge = document.getElementById('syncStatus');
-            if (!badge) return;
+            updateSyncStatusUI(synced && githubToken ? 'synced' : 'local');
+        }
 
-            if (synced && githubToken) {
-                badge.classList.remove('hidden');
-                badge.classList.add('flex');
-                document.getElementById('syncText').textContent = 'Synced with GitHub';
+        function updateSyncStatusUI(state) {
+            const badge = document.getElementById('syncStatus');
+            const textEl = document.getElementById('syncText');
+            if (!badge || !textEl) return;
+
+            badge.classList.remove('hidden');
+            badge.classList.add('flex');
+
+            if (state === 'syncing') {
+                badge.classList.remove('border-slate-200');
+                badge.classList.add('border-emerald-200', 'bg-emerald-50');
+                textEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Syncing...';
+                textEl.className = 'text-emerald-700';
+            } else if (state === 'synced' && githubToken) {
+                badge.classList.remove('border-emerald-200', 'bg-emerald-50');
+                badge.classList.add('border-slate-200');
+                textEl.innerHTML = 'Synced with GitHub';
+                textEl.className = 'text-emerald-700';
             } else {
                 badge.classList.add('hidden');
-                badge.classList.remove('flex');
+                badge.classList.remove('flex', 'border-emerald-200', 'bg-emerald-50');
             }
         }
 
@@ -368,7 +729,7 @@
         }
 
         function calculateStats() {
-            if (entries.length === 0) return { latest: null, change7d: null, avg: null };
+            if (entries.length === 0) return { latest: null, change7d: null, avg: null, verifiedCount: 0 };
 
             const sortedDesc = [...entries].sort((a, b) => b.date.localeCompare(a.date));
             const latest = sortedDesc[0].weight;
@@ -379,7 +740,9 @@
             if (entry7d) change7d = parseFloat((latest - entry7d.weight).toFixed(1));
 
             const avg = parseFloat((entries.reduce((sum, e) => sum + e.weight, 0) / entries.length).toFixed(1));
-            return { latest, change7d, avg };
+            const verifiedCount = entries.filter(e => e.verified).length;
+
+            return { latest, change7d, avg, verifiedCount };
         }
 
         function renderStats() {
@@ -419,6 +782,14 @@
                     <div class="text-xs font-semibold tracking-wider text-slate-500">AVERAGE</div>
                     <div class="mt-2 flex items-baseline gap-x-1"><span class="text-3xl font-semibold metric">${stats.avg}</span><span class="text-sm text-slate-400">kg</span></div>
                     <div class="text-[10px] text-slate-500 mt-1">Across all ${entries.length} entries</div>
+                </div>
+                <div class="bg-white border border-slate-100 rounded-3xl p-5">
+                    <div class="text-xs font-semibold tracking-wider text-slate-500">VERIFIED</div>
+                    <div class="mt-2 flex items-baseline gap-x-1">
+                        <span class="text-3xl font-semibold metric text-emerald-600">${stats.verifiedCount}</span>
+                        <span class="text-sm text-slate-400">/ ${entries.length}</span>
+                    </div>
+                    <div class="text-[10px] text-emerald-600 mt-1">Locked &amp; trusted</div>
                 </div>`;
         }
 
@@ -463,18 +834,47 @@
                     deltaHTML = `<span class="inline-flex items-center gap-x-1 font-medium ${up ? 'text-red-600' : 'text-emerald-600'}">${up ? '+' : ''}${delta} kg <i class="fa-solid fa-arrow-${up ? 'up' : 'down'} text-xs"></i></span>`;
                 }
 
-                const row = document.createElement('tr');
-                row.className = 'entry-row';
-                row.innerHTML = `
-                    <td class="px-7 py-4 font-medium">${formatDate(entry.date)}</td>
-                    <td class="px-4 py-4"><span class="font-semibold text-lg">${entry.weight}</span> <span class="text-xs text-slate-400">kg</span></td>
-                    <td class="px-4 py-4">${deltaHTML}</td>
-                    <td class="px-7 py-4 text-right">
+                const isVerified = entry.verified === true;
+                const dateStr = entry.date;
+
+                let actionsHTML = '';
+                if (isVerified) {
+                    actionsHTML = `
+                        <div class="flex justify-end items-center gap-x-2">
+                            <span class="inline-flex items-center gap-x-1 px-2.5 py-1 text-[10px] font-semibold tracking-wide bg-emerald-100 text-emerald-700 rounded-xl">
+                                <i class="fa-solid fa-check-circle"></i>
+                                <span>VERIFIED</span>
+                            </span>
+                            <button onclick="deleteEntry('${dateStr}')" class="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-x-1">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>`;
+                } else {
+                    actionsHTML = `
                         <div class="flex justify-end gap-x-1">
-                            <button onclick="editEntry('${entry.date}')" class="px-3.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 rounded-xl flex items-center gap-x-1"><i class="fa-solid fa-edit"></i><span>Edit</span></button>
-                            <button onclick="deleteEntry('${entry.date}')" class="px-3.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-x-1"><i class="fa-solid fa-trash"></i><span>Delete</span></button>
-                        </div>
-                    </td>`;
+                            <button onclick="verifyEntry('${dateStr}')" class="px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-xl flex items-center gap-x-1 shadow-sm">
+                                <i class="fa-solid fa-check"></i>
+                                <span>Verify</span>
+                            </button>
+                            <button onclick="editEntry('${dateStr}')" class="px-3.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 rounded-xl flex items-center gap-x-1">
+                                <i class="fa-solid fa-edit"></i><span>Edit</span>
+                            </button>
+                            <button onclick="deleteEntry('${dateStr}')" class="px-3.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-x-1">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>`;
+                }
+
+                const row = document.createElement('tr');
+                row.className = isVerified ? 'entry-row bg-emerald-50/30' : 'entry-row';
+                row.innerHTML = `
+                    <td class="px-7 py-4 font-medium ${isVerified ? 'text-emerald-900' : ''}">${formatDate(dateStr)}</td>
+                    <td class="px-4 py-4">
+                        <span class="font-semibold text-lg ${isVerified ? 'text-emerald-800' : ''}">${entry.weight}</span> 
+                        <span class="text-xs text-slate-400">kg</span>
+                    </td>
+                    <td class="px-4 py-4">${deltaHTML}</td>
+                    <td class="px-7 py-4 text-right">${actionsHTML}</td>`;
                 tbody.appendChild(row);
             });
         }
@@ -490,13 +890,31 @@
             const date = document.getElementById('dateInput').value;
             const weight = parseFloat(document.getElementById('weightInput').value);
 
-            if (!date || isNaN(weight) || weight <= 0) { alert('Please enter a valid date and weight.'); return; }
+            if (!date || isNaN(weight) || weight <= 0) {
+                alert('Please enter a valid date and weight.');
+                return;
+            }
 
-            const existingIndex = entries.findIndex(e => e.date === date);
+            // Production rule: verified entries cannot be changed
+            if (isDateVerified(date)) {
+                alert('This date is already verified. Verified entries cannot be edited. Delete the entry first if you need to correct it.');
+                return;
+            }
+
+            // If we are in edit mode (came from Edit button), force the date to the locked one
+            const targetDate = editingDate || date;
+
+            // If we were in edit mode, make sure the weight change goes to the original date
+            const finalDate = editingDate ? editingDate : date;
+
+            const existingIndex = entries.findIndex(e => e.date === finalDate);
             if (existingIndex !== -1) {
                 entries[existingIndex].weight = weight;
+                // Defensive: if somehow verified, unverify on correction
+                entries[existingIndex].verified = false;
+                entries[existingIndex].verifiedAt = null;
             } else {
-                entries.push({ id: Date.now(), date, weight });
+                entries.push({ date: finalDate, weight, verified: false, verifiedAt: null });
             }
 
             entries.sort((a, b) => a.date.localeCompare(b.date));
@@ -504,27 +922,130 @@
             await saveData('log');
             renderAll();
 
+            const wasEditing = !!editingDate;
+            exitEditMode();
+            checkVerifiedDateWarning();
+
             document.getElementById('weightInput').value = '';
+
+            // If we were editing, reset date picker to today for next entry
+            if (wasEditing) {
+                document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+            }
+
             const btn = document.getElementById('logButton');
             const orig = btn.innerHTML;
             btn.innerHTML = `<i class="fa-solid fa-check"></i> Saved`;
-            setTimeout(() => { btn.innerHTML = orig; }, 1100);
+            setTimeout(() => { 
+                btn.innerHTML = orig; 
+                checkVerifiedDateWarning(); 
+            }, 1100);
         }
 
         function editEntry(date) {
-            const entry = entries.find(e => e.date === date);
+            if (isDateVerified(date)) {
+                alert('Verified entries cannot be edited. Delete the entry and re-log if correction is needed.');
+                return;
+            }
+            const entry = getEntryByDate(date);
             if (!entry) return;
-            document.getElementById('dateInput').value = entry.date;
+
+            // Enter edit mode: lock the date to this specific record
+            editingDate = date;
+
+            const dateInput = document.getElementById('dateInput');
+            const hint = document.getElementById('dateLockHint');
+            dateInput.value = entry.date;
+            dateInput.disabled = true;
+            dateInput.classList.add('!bg-slate-100', '!cursor-not-allowed');
+            if (hint) hint.classList.remove('hidden');
+
             document.getElementById('weightInput').value = entry.weight;
             document.getElementById('weightInput').focus();
             window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            // Show editing context banner
+            showEditingContextBanner(date);
+        }
+
+        function showEditingContextBanner(date) {
+            // Remove any existing banner first
+            const existing = document.getElementById('editingContext');
+            if (existing) existing.remove();
+
+            const formCard = document.querySelector('#dateInput').closest('.bg-white');
+            if (!formCard) return;
+
+            const banner = document.createElement('div');
+            banner.id = 'editingContext';
+            banner.className = 'mt-4 -mx-1 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3 text-sm';
+            banner.innerHTML = `
+                <div class="flex items-center gap-x-2 text-amber-700">
+                    <i class="fa-solid fa-lock"></i>
+                    <span><strong>Editing weight for ${formatDate(date)}</strong>. Date is locked.</span>
+                </div>
+                <button onclick="cancelEdit()" class="text-xs px-3 py-1.5 font-medium text-amber-700 hover:bg-amber-100 rounded-xl transition-colors">
+                    Cancel
+                </button>
+            `;
+            // Insert after the verified warning area
+            const verifiedWarning = document.getElementById('verifiedWarning');
+            if (verifiedWarning && verifiedWarning.parentNode === formCard) {
+                verifiedWarning.after(banner);
+            } else {
+                formCard.querySelector('.grid').after(banner);
+            }
+        }
+
+        function cancelEdit() {
+            exitEditMode();
+            // Reset to today for convenience
+            document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+            document.getElementById('weightInput').value = '';
+            checkVerifiedDateWarning();
         }
 
         async function deleteEntry(date) {
-            if (!confirm('Delete this weight entry?')) return;
+            const entry = getEntryByDate(date);
+            const isVerified = entry && entry.verified;
+
+            const confirmMsg = isVerified 
+                ? 'This entry is VERIFIED. Delete it anyway? This action cannot be undone.'
+                : 'Delete this weight entry?';
+
+            if (!confirm(confirmMsg)) return;
+
+            // If we were editing this specific date, exit edit mode
+            if (editingDate === date) {
+                exitEditMode();
+            }
+
             entries = entries.filter(e => e.date !== date);
             await saveData('delete');
             renderAll();
+            checkVerifiedDateWarning();
+        }
+
+        async function verifyEntry(date) {
+            const entry = getEntryByDate(date);
+            if (!entry) return;
+
+            if (entry.verified) return; // already verified
+
+            entry.verified = true;
+            entry.verifiedAt = new Date().toISOString();
+
+            // If we were editing this date, exit edit mode (it just became verified)
+            if (editingDate === date) {
+                exitEditMode();
+            }
+
+            await saveData('verify');
+            renderAll();
+            checkVerifiedDateWarning();
+
+            // Nice confirmation toast feel
+            setTimeout(() => renderAll(), 500);
         }
 
         function exportToCSV() {
@@ -543,46 +1064,104 @@
             const tokenInput = document.getElementById('githubToken').value.trim();
             if (!tokenInput) { alert('Please paste your GitHub token.'); return; }
 
-            githubToken = tokenInput;
-            localStorage.setItem('gh_token', githubToken);
-            isSyncEnabled = true;
+            // First, validate the token and get the user
+            const validation = await validateAndGetGitHubUser(tokenInput);
 
-            // Test connection by trying to load
-            const ghData = await fetchFromGitHub();
-            if (ghData === null) {
-                alert('Could not connect with this token. Please check permissions and try again.');
-                githubToken = '';
-                localStorage.removeItem('gh_token');
+            if (!validation.valid) {
+                alert('Failed to connect: ' + (validation.error || 'Invalid token'));
                 return;
             }
 
-            if (ghData.exists && ghData.content && ghData.content.entries) {
-                entries = ghData.content.entries;
+            // Security check: Only allow the repo owner
+            if (validation.user.login !== GITHUB_OWNER) {
+                alert(`This token belongs to @${validation.user.login}.\nOnly the repository owner (@${GITHUB_OWNER}) is allowed to connect for security reasons.`);
+                return;
+            }
+
+            githubToken = tokenInput;
+            localStorage.setItem('gh_token', githubToken);
+            currentGitHubUser = validation.user;
+            isSyncEnabled = true;
+
+            // Test loading data
+            const ghData = await fetchFromGitHub();
+            if (ghData && ghData.exists && ghData.content && ghData.content.entries) {
+                entries = normalizeEntries(ghData.content.entries);
             }
 
             await saveData('initial sync');
             closeSettingsModal();
             updateSyncStatus(true);
+            updateGitHubConnectionUI();
             renderAll();
-            alert('Successfully connected! Your data will now sync to the repository.');
+            checkVerifiedDateWarning();
+
+            alert(`Successfully connected as @${validation.user.login}!\nYour weight data will now sync to weight-data.json in the repository.`);
         }
 
         function disconnectGitHub() {
             if (!confirm('Disconnect GitHub sync? Data will remain in localStorage and the last version in the repo.')) return;
             githubToken = '';
+            currentGitHubUser = null;
             localStorage.removeItem('gh_token');
             isSyncEnabled = false;
-            document.getElementById('syncStatus').classList.add('hidden');
+            updateGitHubConnectionUI();
             closeSettingsModal();
             updateSyncStatus(false);
         }
 
         async function manualSync() {
-            if (!githubToken) return;
+            if (!githubToken || isSyncing) return;
             const success = await commitToGitHub({ lastUpdated: new Date().toISOString(), entries }, 'Manual sync from WeightLog');
             if (success) {
                 updateLastSyncTime();
+                // Refresh from repo to ensure we have exact server state
+                const ghData = await fetchFromGitHub();
+                if (ghData && ghData.content && ghData.content.entries) {
+                    entries = normalizeEntries(ghData.content.entries);
+                }
+                renderAll();
+                checkVerifiedDateWarning();
                 alert('Data synced successfully to GitHub.');
+            } else {
+                alert('Sync failed. Check your token permissions and try again.');
+            }
+        }
+
+        function checkVerifiedDateWarning() {
+            const date = document.getElementById('dateInput').value;
+            const warning = document.getElementById('verifiedWarning');
+            const logBtn = document.getElementById('logButton');
+            const logText = document.getElementById('logButtonText');
+
+            if (!warning || !date || !logBtn) return;
+
+            const verified = isDateVerified(date);
+            const existing = getEntryByDate(date);
+
+            // If user manually changed the date input while we were in edit mode,
+            // treat it as them wanting to exit edit mode and go back to free logging.
+            if (editingDate && editingDate !== date) {
+                exitEditMode();
+            }
+
+            if (verified) {
+                warning.classList.remove('hidden');
+                logBtn.disabled = true;
+                logBtn.classList.add('!bg-slate-400', 'cursor-not-allowed');
+                logBtn.classList.remove('hover:bg-emerald-700', 'active:bg-emerald-800');
+                if (logText) logText.textContent = 'Verified - Locked';
+            } else {
+                warning.classList.add('hidden');
+                logBtn.disabled = false;
+                logBtn.classList.remove('!bg-slate-400', 'cursor-not-allowed');
+                logBtn.classList.add('hover:bg-emerald-700', 'active:bg-emerald-800');
+
+                if (editingDate) {
+                    if (logText) logText.textContent = 'Update Weight';
+                } else {
+                    if (logText) logText.textContent = existing ? 'Update Weight' : 'Log Weight';
+                }
             }
         }
 
@@ -591,11 +1170,29 @@
             const connectedDiv = document.getElementById('syncConnected');
             const disconnectedDiv = document.getElementById('syncDisconnected');
 
-            if (githubToken) {
+            if (githubToken && currentGitHubUser) {
                 connectedDiv.classList.remove('hidden');
                 disconnectedDiv.classList.add('hidden');
+
+                // Show connected user info
+                const userInfo = document.getElementById('connectedUserInfo');
+                if (userInfo) {
+                    userInfo.innerHTML = `
+                        <div class="flex items-center gap-x-3">
+                            <img src="${currentGitHubUser.avatar_url}" class="w-9 h-9 rounded-2xl" alt="">
+                            <div>
+                                <div class="font-semibold">${currentGitHubUser.name}</div>
+                                <div class="text-xs text-emerald-600">@${currentGitHubUser.login}</div>
+                            </div>
+                        </div>
+                    `;
+                }
+
                 const lastEl = document.getElementById('lastSyncTime');
                 if (lastEl) lastEl.textContent = new Date().toLocaleString();
+            } else if (githubToken) {
+                connectedDiv.classList.remove('hidden');
+                disconnectedDiv.classList.add('hidden');
             } else {
                 connectedDiv.classList.add('hidden');
                 disconnectedDiv.classList.remove('hidden');
@@ -613,28 +1210,67 @@
 
         // ==================== INIT ====================
         async function initializeApp() {
+            // Always start with PIN protection
+            const hasPin = !!localStorage.getItem(PIN_HASH_KEY);
+
+            if (!hasPin) {
+                // First time ever - show PIN setup screen
+                showPinScreen();
+                return;
+            }
+
+            // Has PIN → show lock screen and wait for user to unlock
+            showPinScreen();
+        }
+
+        async function initializeAppAfterUnlock() {
             initTailwind();
 
-            // Set today's date
-            document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+            // Restore GitHub token if exists
+            githubToken = localStorage.getItem('gh_token') || '';
+            isSyncEnabled = !!githubToken;
+
+            // If we have a token, try to validate the user
+            if (githubToken) {
+                const result = await validateAndGetGitHubUser(githubToken);
+                if (result.valid) {
+                    currentGitHubUser = result.user;
+                    updateGitHubConnectionUI();
+                } else {
+                    // Token is invalid or no longer works
+                    githubToken = '';
+                    localStorage.removeItem('gh_token');
+                    isSyncEnabled = false;
+                }
+            }
+
+            // Start in free logging mode with today's date
+            editingDate = null;
+            const dateInputEl = document.getElementById('dateInput');
+            dateInputEl.value = new Date().toISOString().split('T')[0];
+            dateInputEl.disabled = false;
 
             // Load data (GitHub priority if token exists)
             await loadData();
+
+            // Initial button state
+            setTimeout(checkVerifiedDateWarning, 0);
 
             // Keyboard support
             const weightInput = document.getElementById('weightInput');
             weightInput.addEventListener('keypress', e => { if (e.key === 'Enter') logWeight(); });
 
+            // Watch date changes → show verified warning if applicable
+            const dateInput = document.getElementById('dateInput');
+            dateInput.addEventListener('change', checkVerifiedDateWarning);
+            dateInput.addEventListener('input', checkVerifiedDateWarning);
+
             renderAll();
             updateSyncStatus(!!githubToken);
+            updateGitHubConnectionUI();
+            checkVerifiedDateWarning();
 
-            // Initial sync status
-            if (githubToken) {
-                document.getElementById('syncStatus').classList.remove('hidden');
-                document.getElementById('syncStatus').classList.add('flex');
-            }
-
-            console.log('%c[WeightLog] Production app initialized. Design locked. GitHub sync available.', 'color:#64748b');
+            console.log('%c[WeightLog] Production app initialized with PIN + GitHub auth.', 'color:#64748b');
         }
 
         window.onload = initializeApp;
