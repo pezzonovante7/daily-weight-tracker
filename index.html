@@ -377,6 +377,10 @@
             localStorage.setItem(PIN_SALT_KEY, salt);
             localStorage.setItem(PIN_HASH_KEY, hash);
 
+            // On first PIN setup, explicitly start completely fresh.
+            // This prevents old test data from previous visits from appearing.
+            localStorage.removeItem('weightEntries');
+
             isAppUnlocked = true;
             hidePinScreen();
             await initializeAppAfterUnlock();
@@ -422,6 +426,7 @@
             localStorage.removeItem(PIN_HASH_KEY);
             localStorage.removeItem(PIN_SALT_KEY);
             localStorage.removeItem('gh_token');
+            localStorage.removeItem('weightEntries'); // Also clear any old cached weight data
 
             githubToken = '';
             currentGitHubUser = null;
