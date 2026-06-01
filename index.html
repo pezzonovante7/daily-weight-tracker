@@ -870,9 +870,6 @@
                                 <i class="fa-solid fa-check-circle"></i>
                                 <span>VERIFIED</span>
                             </span>
-                            <button onclick="deleteEntry('${dateStr}')" class="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-x-1">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
                         </div>`;
                 } else {
                     actionsHTML = `
@@ -1032,13 +1029,12 @@
 
         async function deleteEntry(date) {
             const entry = getEntryByDate(date);
-            const isVerified = entry && entry.verified;
+            if (entry && entry.verified) {
+                alert('Verified entries are locked and cannot be deleted.');
+                return;
+            }
 
-            const confirmMsg = isVerified 
-                ? 'This entry is VERIFIED. Delete it anyway? This action cannot be undone.'
-                : 'Delete this weight entry?';
-
-            if (!confirm(confirmMsg)) return;
+            if (!confirm('Delete this weight entry?')) return;
 
             // If we were editing this specific date, exit edit mode
             if (editingDate === date) {
