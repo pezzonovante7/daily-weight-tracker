@@ -765,11 +765,11 @@
                             <div>
                                 <div class="text-xs font-semibold tracking-wider text-slate-500">7-DAY CHANGE</div>
                                 <div class="mt-2 flex items-baseline gap-x-1">
-                                    <span class="text-3xl font-semibold metric ${isPositive ? 'text-red-600' : 'text-emerald-600'}">${stats.change7d > 0 ? '+' : ''}${stats.change7d}</span>
+                                    <span class="text-3xl font-semibold metric ${isPositive ? 'text-emerald-600' : 'text-red-600'}">${stats.change7d > 0 ? '+' : ''}${stats.change7d}</span>
                                     <span class="text-sm text-slate-400">kg</span>
                                 </div>
                             </div>
-                            <i class="fa-solid ${isPositive ? 'fa-arrow-trend-up text-red-400' : 'fa-arrow-trend-down text-emerald-400'} text-2xl"></i>
+                            <i class="fa-solid ${isPositive ? 'fa-arrow-trend-up text-emerald-400' : 'fa-arrow-trend-down text-red-400'} text-2xl"></i>
                         </div>
                     </div>`;
             } else {
@@ -836,7 +836,7 @@
                 if (idx > 0) {
                     const delta = parseFloat((entry.weight - asc[idx-1].weight).toFixed(1));
                     const up = delta > 0;
-                    deltaHTML = `<span class="inline-flex items-center gap-x-1 font-medium ${up ? 'text-red-600' : 'text-emerald-600'}">${up ? '+' : ''}${delta} kg <i class="fa-solid fa-arrow-${up ? 'up' : 'down'} text-xs"></i></span>`;
+                    deltaHTML = `<span class="inline-flex items-center gap-x-1 font-medium ${up ? 'text-emerald-600' : 'text-red-600'}">${up ? '+' : ''}${delta} kg <i class="fa-solid fa-arrow-${up ? 'up' : 'down'} text-xs"></i></span>`;
                 }
 
                 const isVerified = entry.verified === true;
