@@ -311,6 +311,7 @@
         let githubToken = localStorage.getItem('gh_token') || '';
         let isSyncEnabled = !!githubToken;
         let isSyncing = false; // prevents concurrent operations
+        let lastSyncError = '';
 
         // Edit mode tracking (when user clicked Edit button on a specific entry)
         let editingDate = null; // null = free logging mode, string = locked to this date
@@ -596,8 +597,10 @@
 
             isSyncing = true;
             updateSyncStatusUI('syncing');
+            let success = false;
 
             try {
+                lastSyncError = '';
                 // Get current file info (for SHA) - this ensures we always have latest
                 const current = await fetchFromGitHub();
                 const sha = current && current.exists ? current.sha : null;
@@ -626,14 +629,19 @@
                     throw new Error(msg);
                 }
 
+                success = true;
                 return true;
             } catch (err) {
                 console.error('GitHub commit error:', err);
-                // Don't spam alerts for every operation - let caller decide
+                lastSyncError = err.message || err;
                 return false;
             } finally {
                 isSyncing = false;
-                updateSyncStatusUI(githubToken ? 'synced' : 'local');
+                if (!success && githubToken) {
+                    updateSyncStatusUI('failed');
+                } else {
+                    updateSyncStatusUI(githubToken ? 'synced' : 'local');
+                }
             }
         }
 
@@ -686,9 +694,11 @@
                 );
                 if (success) {
                     updateLastSyncTime();
-                    updateSyncStatus(true);
+                    return true;
                 }
+                return false;
             }
+            return true;
         }
 
         function updateSyncStatus(synced) {
@@ -704,18 +714,27 @@
             badge.classList.add('flex');
 
             if (state === 'syncing') {
-                badge.classList.remove('border-slate-200');
+                badge.classList.remove('border-slate-200', 'border-red-200', 'bg-red-50');
                 badge.classList.add('border-emerald-200', 'bg-emerald-50');
                 textEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Syncing...';
                 textEl.className = 'text-emerald-700';
+                badge.title = '';
             } else if (state === 'synced' && githubToken) {
-                badge.classList.remove('border-emerald-200', 'bg-emerald-50');
+                badge.classList.remove('border-emerald-200', 'bg-emerald-50', 'border-red-200', 'bg-red-50');
                 badge.classList.add('border-slate-200');
                 textEl.innerHTML = 'Synced with GitHub';
                 textEl.className = 'text-emerald-700';
+                badge.title = '';
+            } else if (state === 'failed') {
+                badge.classList.remove('border-slate-200', 'border-emerald-200', 'bg-emerald-50');
+                badge.classList.add('border-red-200', 'bg-red-50');
+                textEl.innerHTML = '<i class="fa-solid fa-circle-exclamation text-red-500 mr-1"></i> Sync Failed';
+                textEl.className = 'text-red-700';
+                badge.title = lastSyncError || 'Unknown error occurred during sync';
             } else {
                 badge.classList.add('hidden');
-                badge.classList.remove('flex', 'border-emerald-200', 'bg-emerald-50');
+                badge.classList.remove('flex', 'border-emerald-200', 'bg-emerald-50', 'border-red-200', 'bg-red-50');
+                badge.title = '';
             }
         }
 
@@ -1094,7 +1113,18 @@
                 entries = normalizeEntries(ghData.content.entries);
             }
 
-            await saveData('initial sync');
+            const success = await saveData('initial sync');
+            if (!success) {
+                alert('Connected to GitHub, but failed to write weight-data.json.\n\nError: ' + lastSyncError + '\n\nPlease check your token permissions (ensure "Contents" is set to "Read and write").');
+                githubToken = '';
+                currentGitHubUser = null;
+                localStorage.removeItem('gh_token');
+                isSyncEnabled = false;
+                updateGitHubConnectionUI();
+                updateSyncStatus(false);
+                return;
+            }
+
             closeSettingsModal();
             updateSyncStatus(true);
             updateGitHubConnectionUI();
@@ -1129,7 +1159,7 @@
                 checkVerifiedDateWarning();
                 alert('Data synced successfully to GitHub.');
             } else {
-                alert('Sync failed. Check your token permissions and try again.');
+                alert('Sync failed. Error: ' + lastSyncError + '\n\nCheck your token permissions and try again.');
             }
         }
 
