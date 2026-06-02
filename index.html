@@ -90,9 +90,9 @@
     </div>
 
     <!-- Main App -->
-    <div class="max-w-5xl mx-auto px-4 py-8">
+    <div class="max-w-5xl mx-auto px-4 py-5 sm:py-8">
         <!-- Header -->
-        <div class="flex items-center justify-between mb-8">
+        <div class="flex flex-col gap-y-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
             <div class="flex items-center gap-x-3">
                 <div class="w-11 h-11 bg-emerald-600 rounded-2xl flex items-center justify-center shadow-inner">
                     <i class="fa-solid fa-weight-hanging text-white text-3xl"></i>
@@ -103,7 +103,7 @@
                 </div>
             </div>
             
-            <div class="flex items-center gap-x-3">
+            <div class="flex items-center justify-end gap-x-2 w-full sm:w-auto">
                 <!-- Sync Status -->
                 <div id="syncStatus" class="hidden items-center gap-x-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-2xl text-xs font-medium">
                     <i class="fa-solid fa-sync text-emerald-500"></i>
@@ -130,7 +130,7 @@
         </div>
 
         <!-- Log Weight Card -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8 weight-card">
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 sm:p-8 mb-6 sm:mb-8 weight-card">
             <div class="flex items-center justify-between mb-6">
                 <div>
                     <h2 class="section-header font-semibold text-slate-900">Log today's weight</h2>
@@ -187,7 +187,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="statsContainer"></div>
 
         <!-- Chart -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-7 mb-8">
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 sm:p-7 mb-6 sm:mb-8">
             <div class="flex items-center justify-between mb-5">
                 <div>
                     <h3 class="section-header font-semibold">Weight Trend</h3>
@@ -195,14 +195,14 @@
                 </div>
                 <div class="text-xs px-3 py-1 bg-slate-100 text-slate-500 rounded-2xl font-medium" id="dataPoints">0 entries</div>
             </div>
-            <div class="relative h-[280px] w-full">
+            <div class="relative h-[200px] sm:h-[280px] w-full">
                 <canvas id="weightChart"></canvas>
             </div>
         </div>
 
         <!-- History Table -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-            <div class="px-7 pt-6 pb-4 flex items-center justify-between border-b border-slate-100">
+            <div class="px-5 sm:px-7 pt-6 pb-4 flex items-center justify-between border-b border-slate-100">
                 <div>
                     <h3 class="section-header font-semibold">History</h3>
                     <p class="text-xs text-slate-500">All recorded entries • Newest first</p>
@@ -210,7 +210,8 @@
                 <div class="text-xs text-slate-400 font-medium" id="entryCount">0 entries</div>
             </div>
 
-            <div class="overflow-x-auto">
+            <!-- Desktop View -->
+            <div class="hidden sm:block overflow-x-auto">
                 <table class="w-full">
                     <thead>
                         <tr class="bg-slate-50 text-left">
@@ -223,6 +224,9 @@
                     <tbody id="historyTableBody" class="text-sm divide-y divide-slate-100"></tbody>
                 </table>
             </div>
+
+            <!-- Mobile View -->
+            <div id="historyMobileList" class="block sm:hidden divide-y divide-slate-100"></div>
 
             <div id="emptyState" class="hidden px-7 py-16 text-center">
                 <div class="mx-auto w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
@@ -243,7 +247,7 @@
 
     <!-- Settings Modal -->
     <div id="settingsModal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50" onclick="if (event.target.id === 'settingsModal') closeSettingsModal()">
-        <div onclick="event.stopImmediatePropagation()" class="modal bg-white w-full max-w-md mx-4 rounded-3xl shadow-xl border border-slate-100">
+        <div onclick="event.stopImmediatePropagation()" class="modal bg-white w-full max-w-md mx-4 rounded-3xl shadow-xl border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div class="px-6 pt-6 pb-4 border-b flex items-center justify-between">
                 <h3 class="font-semibold text-lg">Settings</h3>
                 <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-times text-xl"></i></button>
@@ -840,10 +844,13 @@
 
         function renderTable() {
             const tbody = document.getElementById('historyTableBody');
+            const mobileList = document.getElementById('historyMobileList');
             const empty = document.getElementById('emptyState');
             document.getElementById('entryCount').textContent = `${entries.length} entries`;
 
             tbody.innerHTML = '';
+            if (mobileList) mobileList.innerHTML = '';
+
             if (entries.length === 0) { empty.classList.remove('hidden'); return; }
             empty.classList.add('hidden');
 
@@ -898,6 +905,45 @@
                     <td class="px-4 py-4">${deltaHTML}</td>
                     <td class="px-7 py-4 text-right">${actionsHTML}</td>`;
                 tbody.appendChild(row);
+
+                if (mobileList) {
+                    const card = document.createElement('div');
+                    card.className = isVerified ? 'p-5 flex flex-col gap-3 bg-emerald-50/30' : 'p-5 flex flex-col gap-3';
+                    
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="font-medium text-sm text-slate-500">${formatDate(dateStr)}</span>
+                            <div>${deltaHTML}</div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="font-semibold text-2xl text-slate-900">${entry.weight}</span>
+                                <span class="text-xs text-slate-400">kg</span>
+                            </div>
+                            ${isVerified ? `
+                                <span class="inline-flex items-center gap-x-1 px-2.5 py-1 text-[10px] font-semibold tracking-wide bg-emerald-100 text-emerald-700 rounded-xl">
+                                    <i class="fa-solid fa-check-circle"></i>
+                                    <span>VERIFIED</span>
+                                </span>
+                            ` : ''}
+                        </div>
+                        ${!isVerified ? `
+                            <div class="flex items-center gap-x-2 mt-3 pt-3 border-t border-slate-100 justify-end">
+                                <button onclick="verifyEntry('${dateStr}')" class="flex-1 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-xl flex items-center justify-center gap-x-1 shadow-sm">
+                                    <i class="fa-solid fa-check"></i>
+                                    <span>Verify</span>
+                                </button>
+                                <button onclick="editEntry('${dateStr}')" class="px-4 py-2 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center justify-center gap-x-1">
+                                    <i class="fa-solid fa-edit"></i>
+                                    <span>Edit</span>
+                                </button>
+                                <button onclick="deleteEntry('${dateStr}')" class="px-3 py-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-xl flex items-center justify-center">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        ` : ''}`;
+                    mobileList.appendChild(card);
+                }
             });
         }
 
