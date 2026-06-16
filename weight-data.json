@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-06-15T01:36:57.693Z",
+  "lastUpdated": "2026-06-16T01:47:35.667Z",
   "entries": [
     {
       "date": "2026-05-30",
@@ -72,6 +72,12 @@
       "weight": 57,
       "verified": true,
       "verifiedAt": "2026-06-15T01:36:57.693Z"
+    },
+    {
+      "date": "2026-06-16",
+      "weight": 57.1,
+      "verified": false,
+      "verifiedAt": null
     }
   ]
 }
